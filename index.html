@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perishly — Smart Fridge for Shared Households</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; width: 100%; }
+    body { font-family: 'DM Sans', sans-serif; background: #FAF7F2; color: #1E1A14; overflow-x: hidden; }
+    input, select, button, textarea { font-family: 'DM Sans', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #E8DDD0; border-radius: 3px; }
+
+    /* Animations */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .fade-in { animation: fadeIn 0.35s ease forwards; }
+    .slide-in { animation: slideIn 0.3s ease forwards; }
+
+    /* Nav/Button Styles */
+    .nav-btn:hover { background: #D4E8D8 !important; color: #3A6644 !important; }
+    .filter-pill:hover { opacity: 0.85; }
+    .item-row:hover { border-color: #C4A882 !important; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .card-hover:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); transform: translateY(-1px); transition: all 0.2s; }
+    .btn-primary:hover { background: #2e5236 !important; }
+    .btn-ghost:hover { background: #F3EDE3 !important; }
+    input:focus, select:focus { border-color: #3A6644 !important; outline: none; box-shadow: 0 0 0 3px rgba(58,102,68,0.1); }
+    .quick-prompt:hover { background: #E8DDD0 !important; }
+    .status-toggle:hover { opacity: 0.8; }
+    .bounty-claim:hover { background: #D4922A !important; color: #fff !important; }
+
+    .dot-loader span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #7DAA85; margin: 0 2px; animation: pulse 1.2s ease-in-out infinite; }
+    .dot-loader span:nth-child(2) { animation-delay: 0.2s; }
+    .dot-loader span:nth-child(3) { animation-delay: 0.4s; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── Design tokens ──
+    const T = {
+      cream: "#FAF7F2", paper: "#F3EDE3", sand: "#E8DDD0", bark: "#C4A882",
+      leaf: "#3A6644", leafLight: "#D4E8D8", leafMid: "#7DAA85",
+      peach: "#E8876A", peachLight: "#FAEAE4",
+      amber: "#D4922A", amberLight: "#FDF2DC",
+      red: "#C94040", redLight: "#FAEBEB",
+      ink: "#1E1A14", inkMid: "#5C5347", inkLight: "#9E9589", white: "#FFFFFF",
+    };
+
+    // ── In-memory DB ──
+    const DB = { users: [], households: [] };
+
+    // ── Sample items ──
+    const SAMPLE_ITEMS = [
+      { id: 1,  name: "Whole Milk",      owner: "You",   category: "Dairy",      expiresIn: 2,  status: "private",  bounty: null, emoji: "🥛", cost: 4.99 },
+      { id: 2,  name: "Greek Yogurt",    owner: "Jamie", category: "Dairy",      expiresIn: 5,  status: "shared",   bounty: null, emoji: "🫙", cost: 3.49 },
+      { id: 3,  name: "Baby Spinach",    owner: "You",   category: "Produce",    expiresIn: 1,  status: "fairgame", bounty: 10,   emoji: "🥬", cost: 2.99 },
+      { id: 4,  name: "Chicken Thighs",  owner: "Riley", category: "Meat",       expiresIn: 1,  status: "private",  bounty: null, emoji: "🍗", cost: 8.50 },
+      { id: 5,  name: "Strawberries",    owner: "Jamie", category: "Produce",    expiresIn: 3,  status: "fairgame", bounty: 5,    emoji: "🍓", cost: 3.99 },
+      { id: 6,  name: "Cheddar Block",   owner: "Riley", category: "Dairy",      expiresIn: 12, status: "shared",   bounty: null, emoji: "🧀", cost: 5.49 },
+      { id: 7,  name: "Eggs (dozen)",    owner: "You",   category: "Eggs",       expiresIn: 18, status: "shared",   bounty: null, emoji: "🥚", cost: 4.29 },
+      { id: 8,  name: "Leftover Pasta",  owner: "Jamie", category: "Leftovers", expiresIn: 0,  status: "fairgame", bounty: 15,   emoji: "🍝", cost: 0    },
+      { id: 9,  name: "Orange Juice",    owner: "Riley", category: "Beverage",  expiresIn: 4,  status: "private",  bounty: null, emoji: "🍊", cost: 3.79 },
+      { id: 10, name: "Sourdough Loaf",  owner: "You",   category: "Bread",      expiresIn: 6,  status: "shared",   bounty: null, emoji: "🍞", cost: 6.00 },
+    ];
+
+    const RM_COLORS = { "You": T.leaf, "Jamie": T.peach, "Riley": T.amber };
+    const STATUS_CFG = {
+      private:  { label: "Private",   icon: "🔴", color: T.red,   bg: T.redLight,   border: "#F5C6C6" },
+      fairgame: { label: "Fair Game", icon: "🟡", color: T.amber, bg: T.amberLight, border: "#F5DFA6" },
+      shared:   { label: "Shared",    icon: "🔵", color: T.leaf,  bg: T.leafLight,  border: "#B8D9BE" },
+    };
+
+    function urgency(d) {
+      if (d <= 0) return { bg: T.redLight,   accent: T.red,     label: "Expired", pill: "#C94040", pillText: "#fff" };
+      if (d === 1) return { bg: "#FEF0E8",   accent: T.peach,   label: "1 day",   pill: T.peach,   pillText: "#fff" };
+      if (d <= 3)  return { bg: T.amberLight,accent: T.amber,   label: `${d}d`,   pill: T.amber,   pillText: "#fff" };
+      if (d <= 7)  return { bg: "#EEF6F0",   accent: T.leafMid, label: `${d}d`,   pill: T.leafMid, pillText: "#fff" };
+      return        { bg: T.paper,           accent: T.bark,    label: `${d}d`,   pill: T.sand,    pillText: T.inkMid };
+    }
+
+    // ── Shared UI ──
+    function Logo({ size = "md" }) {
+      const s = size === "lg" ? 32 : size === "md" ? 26 : 22;
+      return (
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ width:s+6, height:s+6, borderRadius:8, background:T.leaf, display:"flex", alignItems:"center", justifyContent:"center", fontSize:s-6 }}>🌿</div>
+          <span style={{ fontFamily:"'Lora',serif", fontWeight:600, fontSize:s, color:T.ink, letterSpacing:"-0.01em" }}>Perishly</span>
+        </div>
+      );
+    }
+
+    function PrimaryBtn({ children, onClick, fullWidth, size="md" }) {
+      const pad = size === "lg" ? "14px 28px" : "10px 20px";
+      const fs  = size === "lg" ? 17 : 15;
+      return (
+        <button className="btn-primary" onClick={onClick} style={{
+          background:T.leaf, color:T.white, border:"none", borderRadius:10, cursor:"pointer",
+          fontWeight:600, fontSize:fs, padding:pad, width:fullWidth?"100%":undefined,
+          display:"inline-flex", alignItems:"center", justifyContent:"center", transition:"background 0.15s"
+        }}>{children}</button>
+      );
+    }
+
+    function GhostBtn({ children, onClick }) {
+      return (
+        <button className="btn-ghost" onClick={onClick} style={{
+          background:"transparent", color:T.inkMid, border:`1px solid ${T.sand}`,
+          borderRadius:10, cursor:"pointer", fontWeight:600, fontSize:15, padding:"10px 16px", transition:"background 0.15s"
+        }}>{children}</button>
+      );
+    }
+
+    function SectionHead({ title, sub }) {
+      return (
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontFamily:"'Lora',serif", fontWeight:600, fontSize:20, color:T.ink }}>{title}</div>
+          {sub && <div style={{ fontSize:13, color:T.inkLight, marginTop:3 }}>{sub}</div>}
+        </div>
+      );
+    }
+
+    function Field({ value, onChange, placeholder, type="text", error }) {
+      const [focused, setFocused] = useState(false);
+      return (
+        <div style={{ marginBottom:14 }}>
+          <input
+            type={type} value={value} placeholder={placeholder}
+            onChange={e => onChange(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+              width:"100%", background: error ? T.redLight : T.white,
+              border:`1.5px solid ${error ? T.red : focused ? T.leaf : T.sand}`,
+              borderRadius:12, padding:"13px 16px", fontSize:15, color:T.ink,
+              outline:"none", transition:"border-color 0.2s",
+              boxShadow: focused ? "0 0 0 3px rgba(58,102,68,0.1)" : "none"
+            }}
+          />
+          {error && <div style={{ color:T.red, fontSize:12, marginTop:4, marginLeft:4 }}>{error}</div>}
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════
+    //  AUTH SCREEN
+    // ══════════════════════════════════════════
+    function AuthScreen({ onAuth }) {
+      const [mode, setMode] = useState("landing");
+      const [form, setForm] = useState({ name:"", email:"", password:"", householdName:"", householdCode:"", joinMode:"create" });
+      const [errors, setErrors] = useState({});
+      const [pendingUser, setPendingUser] = useState(null);
+
+      function f(key, val) {
+        setForm(p => ({ ...p, [key]: val }));
+        setErrors(p => ({ ...p, [key]: null }));
+      }
+
+      function validate(fields) {
+        const e = {};
+        fields.forEach(k => {
+          if (!form[k]?.trim()) e[k] = "Required";
+          if (k === "email" && form.email && !/\S+@\S+\.\S+/.test(form.email)) e.email = "Valid email required";
+          if (k === "password" && form.password && form.password.length < 6) e.password = "At least 6 characters";
+        });
+        setErrors(e);
+        return Object.keys(e).length === 0;
+      }
+
+      function handleSignup() {
+        if (!validate(["name","email","password"])) return;
+        const u = { id: Date.now(), name: form.name, email: form.email, password: form.password, points: 0 };
+        DB.users.push(u);
+        setPendingUser(u);
+        setMode("household");
+      }
+
+      function handleLogin() {
+        if (!validate(["email","password"])) return;
+        const found = DB.users.find(u => u.email === form.email && u.password === form.password);
+        if (!found) { setErrors({ email: "No account found with these credentials" }); return; }
+        const hh = DB.households.find(h => h.members.includes(found.id));
+        onAuth(found, hh || null);
+      }
+
+      function handleHousehold() {
+        if (form.joinMode === "create") {
+          if (!validate(["householdName"])) return;
+          const hh = { id: Date.now(), name: form.householdName, code: Math.random().toString(36).slice(2,8).toUpperCase(), members: [pendingUser.id] };
+          DB.households.push(hh);
+          onAuth(pendingUser, hh);
+        } else {
+          if (!validate(["householdCode"])) return;
+          const hh = DB.households.find(h => h.code === form.householdCode.toUpperCase());
+          if (!hh) { setErrors({ householdCode: "Household not found" }); return; }
+          hh.members.push(pendingUser.id);
+          onAuth(pendingUser, hh);
+        }
+      }
+
+      if (mode === "landing") return (
+        <div className="fade-in" style={{ minHeight:"100vh", background:T.cream, display:"flex", flexDirection:"column" }}>
+          <div style={{ padding:"20px 40px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <Logo size="md" />
+            <div style={{ display:"flex", gap:12 }}>
+              <GhostBtn onClick={() => setMode("login")}>Sign in</GhostBtn>
+              <PrimaryBtn onClick={() => setMode("signup")}>Get started →</PrimaryBtn>
+            </div>
+          </div>
+
+          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 24px 40px", textAlign:"center" }}>
+            <div style={{ background:T.leafLight, color:T.leaf, borderRadius:20, padding:"6px 16px", fontSize:13, fontWeight:600, marginBottom:24 }}>
+              🌿 Smart fridge. Happy household.
+            </div>
+            <h1 style={{ fontFamily:"'Lora',serif", fontSize:"clamp(38px,6vw,68px)", fontWeight:600, color:T.ink, margin:"0 0 20px", lineHeight:1.1, maxWidth:680 }}>
+              Stop throwing <em style={{ color:T.leaf }}>food</em> — and money — away.
+            </h1>
+            <p style={{ fontSize:18, color:T.inkMid, maxWidth:500, lineHeight:1.7, margin:"0 0 36px" }}>
+              Perishly helps shared households track what's in the fridge, split costs fairly, and actually use food before it expires.
+            </p>
+            <PrimaryBtn size="lg" onClick={() => setMode("signup")}>Create your household →</PrimaryBtn>
+
+            <div style={{ display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center", marginTop:48 }}>
+              {["📸 Receipt scanning","⏰ Expiry tracking","🤝 Cost splitting","✦ AI recipe ideas","🎯 Bounty system","✈ Going Home mode"].map(f => (
+                <div key={f} style={{ background:T.paper, border:`1px solid ${T.sand}`, borderRadius:20, padding:"8px 16px", fontSize:14, color:T.inkMid }}>{f}</div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background:T.paper, borderTop:`1px solid ${T.sand}`, padding:"32px 40px" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:20, maxWidth:800, margin:"0 auto" }}>
+              {[
+                { icon:"📉", title:"Average household saves",  stat:"$480/yr",  sub:"by cutting food waste" },
+                { icon:"🏠", title:"Households track on avg",   stat:"12 items", sub:"per week" },
+                { icon:"🤝", title:"Roommate friction",          stat:"↓ 90%",   sub:"with transparent ledger" },
+              ].map(c => (
+                <div key={c.title} style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:28, marginBottom:6 }}>{c.icon}</div>
+                  <div style={{ fontSize:13, color:T.inkLight, marginBottom:4 }}>{c.title}</div>
+                  <div style={{ fontFamily:"'Lora',serif", fontSize:28, fontWeight:600, color:T.ink }}>{c.stat}</div>
+                  <div style={{ fontSize:13, color:T.inkLight }}>{c.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+      const card = (title, sub, body, backFn) => (
+        <div className="fade-in" style={{ minHeight:"100vh", background:T.cream, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ width:"100%", maxWidth:420 }}>
+            {backFn && <div onClick={backFn} style={{ cursor:"pointer", color:T.inkLight, fontSize:14, marginBottom:24, display:"flex", alignItems:"center", gap:6 }}>← Back</div>}
+            <div style={{ marginBottom:24 }}><Logo size="md" /></div>
+            <div style={{ background:T.white, border:`1px solid ${T.sand}`, borderRadius:20, padding:"32px 32px" }}>
+              <h2 style={{ fontFamily:"'Lora',serif", fontSize:26, fontWeight:600, color:T.ink, margin:"0 0 6px" }}>{title}</h2>
+              <p style={{ color:T.inkLight, fontSize:14, margin:"0 0 28px" }}>{sub}</p>
+              {body}
+            </div>
+          </div>
+        </div>
+      );
+
+      if (mode === "signup") return card(
+        "Create your account",
+        "Join thousands of households saving food & money",
+        <>
+          <Field value={form.name}      onChange={v => f("name",v)}     placeholder="Your full name"               error={errors.name} />
+          <Field value={form.email}     onChange={v => f("email",v)}    placeholder="Email address"    type="email"  error={errors.email} />
+          <Field value={form.password} onChange={v => f("password",v)} placeholder="Password (6+ characters)" type="password" error={errors.password} />
+          <PrimaryBtn fullWidth onClick={handleSignup}>Continue →</PrimaryBtn>
+          <div style={{ textAlign:"center", marginTop:16, fontSize:14, color:T.inkLight }}>
+            Already have an account?{" "}
+            <span style={{ color:T.leaf, cursor:"pointer", fontWeight:600 }} onClick={() => setMode("login")}>Sign in</span>
+          </div>
+        </>,
+        () => setMode("landing")
+      );
+
+      if (mode === "login") return card(
+        "Welcome back",
+        "Sign in to your Perishly account",
+        <>
+          <Field value={form.email}     onChange={v => f("email",v)}    placeholder="Email address" type="email"    error={errors.email} />
+          <Field value={form.password} onChange={v => f("password",v)} placeholder="Password"      type="password" error={errors.password} />
+          <PrimaryBtn fullWidth onClick={handleLogin}>Sign in</PrimaryBtn>
+          <div style={{ textAlign:"center", marginTop:16, fontSize:14, color:T.inkLight }}>
+            Don't have an account?{" "}
+            <span style={{ color:T.leaf, cursor:"pointer", fontWeight:600 }} onClick={() => setMode("signup")}>Sign up free</span>
+          </div>
+        </>,
+        () => setMode("landing")
+      );
+
+      if (mode === "household") return card(
+        `Welcome, ${pendingUser?.name?.split(" ")[0]}! 🌿`,
+        "Set up or join your household",
+        <>
+          <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+            {["create","join"].map(m => (
+              <button key={m} onClick={() => f("joinMode",m)} style={{
+                flex:1, background: form.joinMode === m ? T.leaf : T.paper,
+                border:`1.5px solid ${form.joinMode === m ? T.leaf : T.sand}`,
+                color: form.joinMode === m ? "#fff" : T.inkMid,
+                borderRadius:10, padding:"10px", cursor:"pointer",
+                fontWeight:600, fontSize:14, transition:"all 0.2s"
+              }}>{m === "create" ? "🏠 Create household" : "🔗 Join existing"}</button>
+            ))}
+          </div>
+          {form.joinMode === "create"
+            ? <Field value={form.householdName} onChange={v => f("householdName",v)} placeholder="e.g. The Grove House, Apt 4B…" error={errors.householdName} />
+            : <Field value={form.householdCode} onChange={v => f("householdCode",v)} placeholder="Enter household code (e.g. XK92BT)" error={errors.householdCode} />
+          }
+          <PrimaryBtn fullWidth onClick={handleHousehold}>
+            {form.joinMode === "create" ? "Create household →" : "Join household →"}
+          </PrimaryBtn>
+        </>,
+        null
+      );
+
+      return null;
+    }
+
+    function App({ user, household }) {
+      const [items, setItems]               = useState(SAMPLE_ITEMS);
+      const [view, setView]                = useState("dashboard");
+      const [goingHome, setGoingHome]      = useState(false);
+      const [ariaOpen, setAriaOpen]        = useState(false);
+      const [ariaMessages, setAriaMessages] = useState([]);
+      const [ariaInput, setAriaInput]      = useState("");
+      const [ariaLoading, setAriaLoading] = useState(false);
+      const [addOpen, setAddOpen]          = useState(false);
+      const [newItem, setNewItem]          = useState({ name:"", expiresIn:5, status:"private" });
+      const [filterStatus, setFilterStatus] = useState("all");
+      const [points, setPoints]            = useState({ "You":120, "Jamie":85, "Riley":200 });
+      const chatRef = useRef(null);
+
+      useEffect(() => { if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, [ariaMessages]);
+
+      const userName = user?.name?.split(" ")[0] || "You";
+      const redZone  = items.filter(i => i.expiresIn <= 1);
+      const filtered = items.filter(i => filterStatus === "all" || i.status === filterStatus);
+      const wasteReport = { "You":12.40, "Jamie":8.20, "Riley":19.80 };
+      const totalWaste  = 40.40;
+
+      function claimBounty(id) {
+        setItems(prev => prev.map(i => i.id === id ? { ...i, bounty:null } : i));
+        setPoints(prev => ({ ...prev, "You": prev["You"] + 15 }));
+      }
+
+      function toggleStatus(id, s) {
+        setItems(prev => prev.map(i => i.id === id ? { ...i, status:s } : i));
+      }
+
+      function addItem() {
+        if (!newItem.name.trim()) return;
+        setItems(prev => [...prev, {
+          id: Date.now(), name: newItem.name, owner:"You", category:"Other",
+          expiresIn: parseInt(newItem.expiresIn)||5, status: newItem.status,
+          bounty: null, emoji:"📦", cost:0
+        }]);
+        setNewItem({ name:"", expiresIn:5, status:"private" });
+        setAddOpen(false);
+      }
+
+      function toggleGoingHome() {
+        const next = !goingHome;
+        setGoingHome(next);
+        setItems(prev => prev.map(i =>
+          i.owner === "You" && i.status === "private" ? { ...i, status: next ? "fairgame" : "private" } : i
+        ));
+      }
+
+      async function sendAria() {
+        if (!ariaInput.trim()) return;
+        const msg = ariaInput.trim();
+        setAriaInput("");
+        setAriaMessages(prev => [...prev, { role:"user", content:msg }]);
+        setAriaLoading(true);
+        setTimeout(() => {
+          setAriaMessages(prev => [...prev, { role:"assistant", content: "That looks delicious! Based on your expiring items, I recommend a quick stir-fry or a frittata." }]);
+          setAriaLoading(false);
+        }, 1000);
+      }
+
+      const navItems = [
+        { id:"dashboard", icon:"◈", label:"Dashboard" },
+        { id:"ledger",    icon:"☰", label:"Ledger" },
+        { id:"bounty",    icon:"◎", label:"Bounty Board" },
+        { id:"report",    icon:"◷", label:"Waste Report" },
+      ];
+
+      const inputStyle = {
+        background:T.white, border:`1.5px solid ${T.sand}`, borderRadius:10,
+        padding:"11px 14px", fontSize:14, color:T.ink, outline:"none", width:"100%"
+      };
+
+      return (
+        <div style={{ display:"flex", minHeight:"100vh", background:T.cream }}>
+          <aside style={{ width:224, background:T.white, borderRight:`1px solid ${T.sand}`, display:"flex", flexDirection:"column", position:"sticky", top:0, height:"100vh", flexShrink:0, zIndex:20 }}>
+            <div style={{ padding:"24px 20px 16px" }}>
+              <Logo size="sm" />
+              {household && (
+                <div style={{ background:T.leafLight, borderRadius:10, padding:"10px 12px", marginTop:16, fontSize:13 }}>
+                  <div style={{ fontWeight:600, color:T.leaf }}>{household.name}</div>
+                  <div style={{ color:T.leafMid, marginTop:2 }}>Code: <strong>{household.code}</strong></div>
+                </div>
+              )}
+            </div>
+            <nav style={{ padding:"8px 12px", flex:1 }}>
+              {navItems.map(n => (
+                <button key={n.id} className="nav-btn" onClick={() => setView(n.id)} style={{
+                  display:"flex", alignItems:"center", gap:10, width:"100%",
+                  background: view === n.id ? T.leafLight : "transparent",
+                  border:"none", borderRadius:10, padding:"10px 12px", cursor:"pointer",
+                  color: view === n.id ? T.leaf : T.inkMid,
+                  fontWeight: view === n.id ? 600 : 400, fontSize:15, marginBottom:2, textAlign:"left", transition:"all 0.15s"
+                }}>
+                  <span style={{ fontSize:16, opacity:0.8 }}>{n.icon}</span> {n.label}
+                </button>
+              ))}
+            </nav>
+            <div style={{ padding:"16px 20px", borderTop:`1px solid ${T.sand}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                <div style={{ width:36, height:36, borderRadius:"50%", background:T.leafLight, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600, color:T.leaf }}>{userName[0]}</div>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:14 }}>{userName}</div>
+                  <div style={{ fontSize:12, color:T.inkLight }}>{points["You"]} pts</div>
+                </div>
+              </div>
+              <button onClick={toggleGoingHome} style={{ width:"100%", background: goingHome ? T.amber : T.paper, border:`1px solid ${goingHome ? T.amber : T.sand}`, borderRadius:10, padding:"8px 12px", cursor:"pointer", fontWeight:600, color: goingHome ? "#fff" : T.inkMid }}>
+                {goingHome ? "Going Home: ON" : "Going Home Mode"}
+              </button>
+            </div>
+          </aside>
+
+          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{ background:T.white, borderBottom:`1px solid ${T.sand}`, padding:"14px 28px", display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ fontFamily:"'Lora',serif", fontSize:20, fontWeight:600 }}>{navItems.find(n => n.id === view)?.label}</div>
+              <div style={{ flex:1 }} />
+              <button onClick={() => setAriaOpen(true)} style={{ background:T.leaf, color:"#fff", border:"none", borderRadius:20, padding:"8px 18px", cursor:"pointer", fontWeight:600 }}>✦ Ask Aria</button>
+            </div>
+            <main className="fade-in" style={{ flex:1, overflowY:"auto", padding:28 }}>
+              {view === "dashboard" && (
+                <div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:28 }}>
+                    {[{ label:"Items", v:items.length, c:T.leaf, i:"📦" }, { label:"Red Zone", v:redZone.length, c:T.red, i:"🚨" }, { label:"Fair Game", v:items.filter(i=>i.status==="fairgame").length, c:T.amber, i:"🟡" }, { label:"Shared", v:items.filter(i=>i.status==="shared").length, c:"#3b82f6", i:"🔵" }].map(s => (
+                      <div key={s.label} style={{ background:"#fff", border:`1px solid ${T.sand}`, borderRadius:16, padding:20 }}>
+                        <div style={{ fontSize:22, marginBottom:8 }}>{s.i}</div>
+                        <div style={{ fontSize:32, fontWeight:700, color:s.c }}>{s.v}</div>
+                        <div style={{ fontSize:13, color:T.inkLight }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <SectionHead title="Freshness Map" sub="Sorted by urgency" />
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:10 }}>
+                    {items.sort((a,b)=>a.expiresIn-b.expiresIn).map(item => {
+                      const u = urgency(item.expiresIn);
+                      return (
+                        <div key={item.id} style={{ background:u.bg, borderRadius:14, padding:14, border:`1px solid ${u.accent}33` }}>
+                          <div style={{ fontSize:26, marginBottom:6 }}>{item.emoji}</div>
+                          <div style={{ fontSize:13, fontWeight:600 }}>{item.name}</div>
+                          <div style={{ background:u.pill, color:u.pillText, borderRadius:20, padding:"2px 8px", fontSize:11, fontWeight:700, display:"inline-block", marginTop:4 }}>{u.label}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {view === "ledger" && (
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {items.map(item => {
+                    const u = urgency(item.expiresIn);
+                    return (
+                      <div key={item.id} style={{ background:"#fff", border:`1px solid ${T.sand}`, borderRadius:14, padding:14, display:"flex", alignItems:"center", gap:14, borderLeft:`4px solid ${u.accent}` }}>
+                        <span style={{ fontSize:26 }}>{item.emoji}</span>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:600 }}>{item.name}</div>
+                          <div style={{ fontSize:12, color:T.inkLight }}>{item.owner} · {item.category}</div>
+                        </div>
+                        <div style={{ background:u.pill, color:u.pillText, borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:700 }}>{u.label}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {view === "bounty" && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:12 }}>
+                  {items.filter(i=>i.bounty).map(item => (
+                    <div key={item.id} style={{ background:"#fff", border:`1px solid ${T.sand}`, borderRadius:16, padding:18 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
+                        <span style={{ fontSize:28 }}>{item.emoji}</span>
+                        <div style={{ fontWeight:600 }}>{item.name}</div>
+                      </div>
+                      <div style={{ background:T.amberLight, color:T.amber, borderRadius:10, padding:"5px 12px", fontWeight:700, fontSize:16, display:"inline-block" }}>🎯 {item.bounty}pt</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {view === "report" && (
+                <div style={{ background:T.redLight, borderRadius:18, padding:28 }}>
+                  <div style={{ fontSize:13, color:T.red, fontWeight:700 }}>MONTHLY WASTE</div>
+                  <div style={{ fontSize:52, fontWeight:600, color:T.red }}>${totalWaste.toFixed(2)}</div>
+                </div>
+              )}
+            </main>
+          </div>
+          {ariaOpen && (
+            <div style={{ position:"fixed", top:0, right:0, height:"100vh", width:360, background:"#fff", borderLeft:`1px solid ${T.sand}`, display:"flex", flexDirection:"column", zIndex:100 }}>
+              <div style={{ padding:20, borderBottom:`1px solid ${T.sand}`, display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ fontWeight:600 }}>✦ Aria</div>
+                <button onClick={() => setAriaOpen(false)} style={{ marginLeft:"auto", background:"none", border:"none", cursor:"pointer", fontSize:20 }}>×</button>
+              </div>
+              <div style={{ flex:1, overflowY:"auto", padding:20 }}>
+                {ariaMessages.map((m,i)=>(
+                  <div key={i} style={{ marginBottom:12, textAlign:m.role==="user"?"right":"left" }}>
+                    <div style={{ display:"inline-block", padding:"8px 12px", borderRadius:12, background:m.role==="user"?T.leaf:T.paper, color:m.role==="user"?"#fff":T.ink }}>{m.content}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding:14, borderTop:`1px solid ${T.sand}`, display:"flex", gap:8 }}>
+                <input value={ariaInput} onChange={e=>setAriaInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendAria()} placeholder="Type..." style={{ flex:1, padding:10, borderRadius:8, border:`1px solid ${T.sand}` }} />
+                <button onClick={sendAria} style={{ background:T.leaf, color:"#fff", border:"none", borderRadius:8, padding:"0 16px" }}>↑</button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Root() {
+      const [session, setSession] = useState(null);
+      return session ? <App user={session.user} household={session.household} /> : <AuthScreen onAuth={(u,h)=>setSession({user:u,household:h})} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<Root />);
+  </script>
+</body>
+</html>
