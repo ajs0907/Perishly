@@ -1,0 +1,30 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { height: 100%; width: 100%; }
+body { font-family: 'DM Sans', sans-serif; background: #FAF7F2; color: #1E1A14; overflow-x: hidden; }
+input, select, button, textarea { font-family: 'DM Sans', sans-serif; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #E8DDD0; border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+.fade-in { animation: fadeIn 0.35s ease forwards; }
+.slide-in { animation: slideIn 0.3s ease forwards; }
+
+/* Nav/Button Styles */
+.nav-btn:hover { background: #D4E8D8 !important; color: #3A6644 !important; }
+.filter-pill:hover { opacity: 0.85; }
+.item-row:hover { border-color: #C4A882 !important; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.card-hover:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); transform: translateY(-1px); transition: all 0.2s; }
+.btn-primary:hover { background: #2e5236 !important; }
+.btn-ghost:hover { background: #F3EDE3 !important; }
+input:focus, select:focus { border-color: #3A6644 !important; outline: none; box-shadow: 0 0 0 3px rgba(58,102,68,0.1); }
+.quick-prompt:hover { background: #E8DDD0 !important; }
+.status-toggle:hover { opacity: 0.8; }
+.bounty-claim:hover { background: #D4922A !important; color: #fff !important; }
+
+.dot-loader span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #7DAA85; margin: 0 2px; animation: pulse 1.2s ease-in-out infinite; }
+.dot-loader span:nth-child(2) { animation-delay: 0.2s; }
+.dot-loader span:nth-child(3) { animation-delay: 0.4s; }
