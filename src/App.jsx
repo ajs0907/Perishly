@@ -42,11 +42,11 @@ function PrimaryBtn({ children, onClick, fullWidth, size="md" }) {
   );
 }
 
-function GhostBtn({ children, onClick }) {
+function GhostBtn({ children, onClick, fullWidth }) {
   return (
     <button className="btn-ghost" onClick={onClick} style={{
       background:"transparent", color:T.inkMid, border:`1px solid ${T.sand}`,
-      borderRadius:10, cursor:"pointer", fontWeight:600, fontSize:15, padding:"10px 16px", transition:"background 0.15s"
+      borderRadius:10, cursor:"pointer", fontWeight:600, fontSize:15, padding:"10px 16px", transition:"background 0.15s", width: fullWidth ? "100%" : undefined
     }}>{children}</button>
   );
 }
@@ -118,6 +118,19 @@ function AuthScreen({ onAuth }) {
     await supabase.auth.signInWithOAuth({ provider: 'google' });
   }
 
+  async function handleEmailSignup() {
+    if (!form.email || !form.password) return setErrors(p => ({ ...p, auth: "Email & password required" }));
+    const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password });
+    if (error) setErrors(p => ({ ...p, auth: error.message }));
+    else alert("Please check your email to confirm registration (if required), or you may be automatically signed in.");
+  }
+
+  async function handleEmailLogin() {
+    if (!form.email || !form.password) return setErrors(p => ({ ...p, auth: "Email & password required" }));
+    const { data, error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password });
+    if (error) setErrors(p => ({ ...p, auth: error.message }));
+  }
+
   function f(key, val) {
     setForm(p => ({ ...p, [key]: val }));
     setErrors(p => ({ ...p, [key]: null }));
@@ -159,9 +172,6 @@ function AuthScreen({ onAuth }) {
     <div className="fade-in" style={{ minHeight:"100vh", background:T.cream, display:"flex", flexDirection:"column" }}>
       <div style={{ padding:"20px 40px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <Logo size="md" />
-        <div style={{ display:"flex", gap:12 }}>
-          <PrimaryBtn onClick={handleGoogleLogin}>Sign in / Register</PrimaryBtn>
-        </div>
       </div>
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 24px 40px", textAlign:"center" }}>
@@ -174,7 +184,21 @@ function AuthScreen({ onAuth }) {
         <p style={{ fontSize:18, color:T.inkMid, maxWidth:500, lineHeight:1.7, margin:"0 0 36px" }}>
           Perishly helps shared households track what's in the fridge, split costs fairly, and actually use food before it expires.
         </p>
-        <PrimaryBtn size="lg" onClick={handleGoogleLogin}>Continue with Google →</PrimaryBtn>
+        
+        <div style={{ background:T.white, padding:32, borderRadius:20, border:`1px solid ${T.sand}`, width:"100%", maxWidth:360, textAlign:"left" }}>
+          <h2 style={{ fontSize:20, marginTop:0, marginBottom:16 }}>Get Started</h2>
+          {errors.auth && <div style={{ color:T.red, fontSize:13, marginBottom:12 }}>{errors.auth}</div>}
+          <Field value={form.email || ""} onChange={v => f("email",v)} placeholder="Email" type="email" />
+          <Field value={form.password || ""} onChange={v => f("password",v)} placeholder="Password" type="password" />
+          <div style={{ display:"flex", gap:10, marginTop:8 }}>
+            <PrimaryBtn fullWidth onClick={handleEmailLogin}>Log In</PrimaryBtn>
+            <div style={{ flex:1, display:"flex" }}><GhostBtn fullWidth onClick={handleEmailSignup}>Register</GhostBtn></div>
+          </div>
+          <div style={{ margin:"20px 0", borderTop:`1px solid ${T.sand}`, position:"relative", textAlign:"center" }}>
+            <span style={{ background:T.white, padding:"0 10px", position:"relative", top:-10, fontSize:13, color:T.inkLight }}>or</span>
+          </div>
+          <GhostBtn fullWidth onClick={handleGoogleLogin}>Continue with Google</GhostBtn>
+        </div>
 
         <div style={{ display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center", marginTop:48 }}>
           {["📸 Receipt scanning","⏰ Expiry tracking","🤝 Cost splitting","✦ AI recipe ideas","🎯 Bounty system","✈ Going Home mode"].map(f => (
